@@ -16,11 +16,11 @@ const loadProfiles = () => {
   try {
     const raw = fs.readFileSync(profilesPath, 'utf-8');
     const profiles = JSON.parse(raw);
-    if (!Array.isArray(profiles) || profiles.length === 0) throw new Error('profiles.json empty');
+    if (!Array.isArray(profiles)) return [];
     return profiles;
   } catch (err) {
-    console.error('[AGENT] Failed to load profiles, using default:', err.message);
-    return [{ id: 'default', city: 'Pune', region: 'Maharashtra', lat: '18.5204', lon: '73.8567', crop: 'Cotton' }];
+    console.error('[AGENT] Failed to load profiles:', err.message);
+    return [];
   }
 };
 
@@ -33,7 +33,8 @@ const runOne = async (profile, forceRun) => {
     return;
   }
 
-  console.log(`\n[AGENT LOOP] Cycle for ${profile.city}, ${profile.region} - Crop: ${profile.crop}`);
+  const locStr = profile.region ? `${profile.city}, ${profile.region}` : profile.city;
+  console.log(`\n[AGENT LOOP] Cycle for ${locStr} - Crop: ${profile.crop}`);
   try {
     const port = process.env.PORT || 5000;
     const weatherQuery = profile.lat && profile.lon
@@ -75,6 +76,10 @@ const runOne = async (profile, forceRun) => {
 
 const runAgentCycle = async (forceRun = false) => {
   const profiles = loadProfiles();
+  if (profiles.length === 0) {
+    console.log('[AGENT] No profiles configured — set one in the app to start receiving recommendations.');
+    return;
+  }
   for (const profile of profiles) {
     await runOne(profile, forceRun);
   }

@@ -244,10 +244,11 @@ const run = async () => {
 
   // -------- Profile --------
   section('Profile');
+  let savedProfile = null;
   try {
     const r = await axios.get(`${BASE}/profile`);
     ok('GET /api/profile 200', r.status === 200);
-    ok('profile has city/crop', r.data.data && typeof r.data.data.city === 'string' && typeof r.data.data.crop === 'string');
+    savedProfile = r.data?.data || null;
   } catch (e) {
     ok('GET /api/profile', false, e.message);
   }
@@ -265,6 +266,20 @@ const run = async () => {
     ok('PUT /api/profile missing crop -> 400', false);
   } catch (e) {
     ok('PUT /api/profile missing crop -> 400', e.response?.status === 400);
+  }
+
+  // Restore the developer's original profile so tests don't clobber their setup
+  if (savedProfile && savedProfile.city && savedProfile.crop) {
+    try {
+      await axios.put(`${BASE}/profile`, {
+        city: savedProfile.city,
+        region: savedProfile.region || '',
+        crop: savedProfile.crop,
+      });
+      ok('restored original profile', true);
+    } catch (e) {
+      ok('restored original profile', false, e.message);
+    }
   }
 
   // -------- Agent --------

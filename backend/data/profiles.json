@@ -1,1 +1,10 @@
-[{"id":"default","city":"Pune","region":"Maharashtra","lat":"","lon":"","crop":"Cotton"}]
+[
+  {
+    "id": "default",
+    "city": "Jaipur",
+    "region": "",
+    "lat": "",
+    "lon": "",
+    "crop": "Wheat"
+  }
+]
