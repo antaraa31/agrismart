@@ -1,54 +1,53 @@
 const axios = require('axios');
+const path = require('path');
+const fs = require('fs');
 const { fetchAgriNews } = require('./newsService');
 const { detectPestOutbreak } = require('./pestService');
 const { generateDecisions } = require('./decisionEngine');
 const { executeActions } = require('./actionService');
 
-// STEP 6: Location-Aware Agent Profile
-// In a real database, this would iterate over all registered users
-const AGENT_PROFILE = {
-  city: 'Pune',
-  region: 'Maharashtra',
-  lat: '18.5204',
-  lon: '73.8567',
-  crop: 'Cotton'
-};
+const profilesPath = path.join(__dirname, '../data/profiles.json');
 
 let agentInterval = null;
-let lastRunTimestamp = 0;
-const COOLDOWN_MS = 2 * 60 * 60 * 1000; 
+const lastRunByProfile = new Map();
+const COOLDOWN_MS = 2 * 60 * 60 * 1000;
 
-/**
- * Optimized Location-Aware Agent Loop
- */
-const runAgentCycle = async (forceRun = false) => {
+const loadProfiles = () => {
+  try {
+    const raw = fs.readFileSync(profilesPath, 'utf-8');
+    const profiles = JSON.parse(raw);
+    if (!Array.isArray(profiles) || profiles.length === 0) throw new Error('profiles.json empty');
+    return profiles;
+  } catch (err) {
+    console.error('[AGENT] Failed to load profiles, using default:', err.message);
+    return [{ id: 'default', city: 'Pune', region: 'Maharashtra', lat: '18.5204', lon: '73.8567', crop: 'Cotton' }];
+  }
+};
+
+const runOne = async (profile, forceRun) => {
   const now = Date.now();
-  
-  if (!forceRun && now - lastRunTimestamp < COOLDOWN_MS) {
-    const minutesLeft = Math.round((COOLDOWN_MS - (now - lastRunTimestamp)) / 60000);
-    console.log(`[AGENT LOOP] Cooldown active. Skipping cycle. Next run in ~${minutesLeft} mins.`);
+  const last = lastRunByProfile.get(profile.id) || 0;
+  if (!forceRun && now - last < COOLDOWN_MS) {
+    const minutesLeft = Math.round((COOLDOWN_MS - (now - last)) / 60000);
+    console.log(`[AGENT LOOP] Cooldown for ${profile.id}. Next run in ~${minutesLeft} mins.`);
     return;
   }
 
-  console.log(`\n[AGENT LOOP] Starting autonomous cycle for ${AGENT_PROFILE.city}, ${AGENT_PROFILE.region} - Crop: ${AGENT_PROFILE.crop}`);
-
+  console.log(`\n[AGENT LOOP] Cycle for ${profile.city}, ${profile.region} - Crop: ${profile.crop}`);
   try {
-    // 1. Fetch Location-Specific Weather
-    const weatherResponse = await axios.get(`http://localhost:5000/api/weather?lat=${AGENT_PROFILE.lat}&lon=${AGENT_PROFILE.lon}`);
+    const port = process.env.PORT || 5000;
+    const weatherResponse = await axios.get(`http://localhost:${port}/api/weather?lat=${profile.lat}&lon=${profile.lon}`);
     const weatherData = weatherResponse.data.data;
-    console.log(`[AGENT LOOP] Hyper-local Weather: ${weatherData.temperature}°C, ${weatherData.humidity}% humidity.`);
+    console.log(`[AGENT LOOP] Weather: ${weatherData.temperature}°C, ${weatherData.humidity}% humidity.`);
 
-    // 2. Fetch Hyper-Local News & Schemes
-    const newsData = await fetchAgriNews(AGENT_PROFILE.city);
-    console.log(`[AGENT LOOP] Fetched ${newsData.length} local news/schemes items for ${AGENT_PROFILE.city}.`);
+    const newsData = await fetchAgriNews(profile.city);
+    console.log(`[AGENT LOOP] News items: ${newsData.length}`);
 
-    // 3. Dynamic Pest Inference
-    const pestRisk = await detectPestOutbreak(weatherData.temperature, weatherData.humidity, AGENT_PROFILE.crop, AGENT_PROFILE.city);
-    console.log(`[AGENT LOOP] Inferred Pest Threat: ${pestRisk.likelyPest} (Risk: ${pestRisk.riskLevel})`);
+    const pestRisk = await detectPestOutbreak(weatherData.temperature, weatherData.humidity, profile.crop, profile.city);
+    console.log(`[AGENT LOOP] Pest: ${pestRisk.likelyPest} (Risk: ${pestRisk.riskLevel})`);
 
-    // Package the context
     const environmentalContext = {
-      profile: AGENT_PROFILE,
+      profile,
       weather: weatherData,
       pest: pestRisk,
       news: newsData,
@@ -56,41 +55,39 @@ const runAgentCycle = async (forceRun = false) => {
     };
 
     console.log('[AGENT LOOP] Generating Context-Aware Decision...');
-    
-    // 4. Pass to Decision Engine
     const decisions = await generateDecisions(environmentalContext);
-    
+
     if (decisions.length === 0) {
       console.log('[AGENT LOOP] No immediate critical interventions required.');
     } else {
-      console.log(`[AGENT LOOP] Generated ${decisions.length} actionable decision(s). Executing actions...`);
+      console.log(`[AGENT LOOP] Generated ${decisions.length} decision(s). Executing...`);
       executeActions(decisions);
     }
 
-    lastRunTimestamp = Date.now();
-
+    lastRunByProfile.set(profile.id, Date.now());
   } catch (error) {
-    console.error('[AGENT LOOP] Error during cycle:', error.message);
+    console.error(`[AGENT LOOP] Error for ${profile.id}:`, error.message);
+  }
+};
+
+const runAgentCycle = async (forceRun = false) => {
+  const profiles = loadProfiles();
+  for (const profile of profiles) {
+    await runOne(profile, forceRun);
   }
 };
 
 const startAgent = (intervalMinutes = 120) => {
-  if (agentInterval) {
-    clearInterval(agentInterval);
-  }
-  
+  if (agentInterval) clearInterval(agentInterval);
   console.log(`[AGENT] Initializing Dynamic Location-Aware Loop (Interval: ${intervalMinutes} minutes)`);
-  
   runAgentCycle(true);
-
-  agentInterval = setInterval(() => {
-    runAgentCycle(false);
-  }, intervalMinutes * 60 * 1000);
+  agentInterval = setInterval(() => { runAgentCycle(false); }, intervalMinutes * 60 * 1000);
 };
 
 const stopAgent = () => {
   if (agentInterval) {
     clearInterval(agentInterval);
+    agentInterval = null;
     console.log('[AGENT] Background Loop Stopped.');
   }
 };

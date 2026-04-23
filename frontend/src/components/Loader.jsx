@@ -1,30 +1,36 @@
 import React from 'react';
 
-const Loader = ({ type = 'card' }) => {
+const Loader = ({ type = 'spinner' }) => {
   if (type === 'card') {
     return (
-      <div className="bg-white rounded-xl border border-gray-100 p-lg shadow-sm shadow-green-900/5 space-y-md w-full">
-        <div className="flex justify-between items-start">
-          <div className="h-8 w-48 skeleton-pulse rounded-md"></div>
-          <div className="h-6 w-16 skeleton-pulse rounded-full"></div>
+      <div className="card-surface p-8 space-y-5">
+        <div className="h-5 w-40 skel" />
+        <div className="h-12 w-2/3 skel" />
+        <div className="space-y-2 pt-4">
+          <div className="h-4 w-full skel" />
+          <div className="h-4 w-11/12 skel" />
+          <div className="h-4 w-4/5 skel" />
         </div>
-        <div className="h-4 w-full skeleton-pulse rounded-md"></div>
-        <div className="h-4 w-3/4 skeleton-pulse rounded-md"></div>
-        <div className="pt-md border-t border-gray-50">
-          <div className="h-6 w-32 skeleton-pulse rounded-md mb-sm"></div>
-          <div className="space-y-sm">
-            <div className="h-4 w-full skeleton-pulse rounded-md"></div>
-            <div className="h-4 w-full skeleton-pulse rounded-md"></div>
-            <div className="h-4 w-2/3 skeleton-pulse rounded-md"></div>
-          </div>
+        <div className="pt-4 grid grid-cols-2 gap-4">
+          <div className="h-14 skel rounded-xl" />
+          <div className="h-14 skel rounded-xl" />
         </div>
       </div>
     );
   }
 
+  if (type === 'inline') {
+    return (
+      <span className="inline-flex items-center gap-2 text-[var(--color-ink-muted)] text-[13px]">
+        <span className="w-3 h-3 rounded-full border-[1.5px] border-[var(--color-hairline-strong)] border-t-[var(--color-ink)] animate-spin" />
+        Loading…
+      </span>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-center p-8">
-      <div className="w-8 h-8 rounded-full border-4 border-outline-variant border-t-primary animate-spin"></div>
+    <div className="flex items-center justify-center py-16">
+      <div className="w-6 h-6 rounded-full border-[1.5px] border-[var(--color-hairline-strong)] border-t-[var(--color-ink)] animate-spin" />
     </div>
   );
 };

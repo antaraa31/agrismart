@@ -1,0 +1,10 @@
+[
+  {
+    "id": "default",
+    "city": "Pune",
+    "region": "Maharashtra",
+    "lat": "18.5204",
+    "lon": "73.8567",
+    "crop": "Cotton"
+  }
+]
