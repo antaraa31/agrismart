@@ -6,18 +6,31 @@ import Loader from '../components/Loader';
 const toneForRisk = (level) => (level === 'HIGH' ? 'danger' : level === 'MEDIUM' ? 'warn' : 'good');
 const iconForRisk = (level) => (level === 'LOW' ? <ShieldCheck size={18} /> : <ShieldAlert size={18} />);
 
+const readProfile = () => {
+  try {
+    const s = localStorage.getItem('agriProfile');
+    if (s) {
+      const p = JSON.parse(s);
+      if (p && p.city && p.crop) return p;
+    }
+  } catch {}
+  return null;
+};
+
 const PestAlerts = () => {
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState(null);
   const [weather, setWeather] = useState(null);
-  const [city, setCity] = useState('');
-  const [crop, setCrop] = useState('');
+  const [profile, setProfile] = useState(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('agriProfile');
-    const p = saved ? JSON.parse(saved) : { city: 'Pune', crop: 'Cotton' };
-    setCity(p.city);
-    setCrop(p.crop || 'Cotton');
+    const p = readProfile();
+    if (!p) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+    setProfile(p);
 
     const run = async () => {
       try {
@@ -33,7 +46,7 @@ const PestAlerts = () => {
             body: JSON.stringify({
               temperature: w.data.temperature,
               humidity: w.data.humidity,
-              crop: p.crop || 'Cotton',
+              crop: p.crop,
             }),
           });
           if (pRes.ok) {
@@ -50,6 +63,20 @@ const PestAlerts = () => {
     run();
   }, []);
 
+  if (!loading && !profile) {
+    return (
+      <Page>
+        <Hero eyebrow="Pest intelligence" title="Eyes on the field." subtitle="Set up your farm profile so we can watch for threats in your region." />
+        <Card className="!p-12">
+          <Empty title="No profile yet" hint="Head to Profile to add your location and crop." />
+          <div className="mt-6 text-center">
+            <Button as="a" href="/profile">Set up profile</Button>
+          </div>
+        </Card>
+      </Page>
+    );
+  }
+
   return (
     <Page>
       <Hero
@@ -59,10 +86,10 @@ const PestAlerts = () => {
       >
         <div className="flex items-center gap-3 flex-wrap">
           {alert && <Tag tone={toneForRisk(alert.riskLevel)} dot>{alert.riskLevel} RISK</Tag>}
-          {city && (
+          {profile?.city && (
             <span className="type-small inline-flex items-center gap-1.5">
               <MapPin size={14} className="text-[var(--color-ink-subtle)]" />
-              {city}
+              {profile.city}
             </span>
           )}
         </div>
@@ -101,7 +128,7 @@ const PestAlerts = () => {
                 </div>
                 <div>
                   <div className="type-caption mb-1.5">Crop</div>
-                  <div className="type-h2">{crop}</div>
+                  <div className="type-h2">{profile.crop}</div>
                 </div>
               </div>
             </Card>

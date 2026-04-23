@@ -15,7 +15,7 @@ const Field = ({ label, hint, children }) => (
 );
 
 const Profile = () => {
-  const [profile, setProfile] = useState({ name: '', location: '', region: '', crop: 'Cotton', size: '', bio: '' });
+  const [profile, setProfile] = useState({ name: '', location: '', region: '', crop: '', size: '', bio: '' });
   const [status, setStatus] = useState('idle'); // idle | saving | saved | error
   const [error, setError] = useState(null);
 
@@ -27,7 +27,7 @@ const Profile = () => {
         name: p.name || '',
         location: p.city || '',
         region: p.region || '',
-        crop: p.crop || 'Cotton',
+        crop: p.crop || '',
         size: p.size || '',
         bio: p.bio || '',
       });
@@ -39,7 +39,12 @@ const Profile = () => {
   const save = async (e) => {
     e.preventDefault();
     if (!profile.location.trim()) {
-      setError('Location is required.');
+      setError('City is required.');
+      setStatus('error');
+      return;
+    }
+    if (!profile.crop) {
+      setError('Select a primary crop.');
       setStatus('error');
       return;
     }

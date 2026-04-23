@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MapPin, Wind, Droplets, Thermometer, Cloud, Sparkles, Check, RefreshCw, Locate } from 'lucide-react';
-import { Page, Hero, Section, Card, Stat, Tag, Button } from '../components/ui';
+import { Page, Hero, Section, Card, Stat, Tag, Button, Empty } from '../components/ui';
 import Loader from '../components/Loader';
 
 const toneForStatus = (status) => {
@@ -12,9 +12,12 @@ const toneForStatus = (status) => {
 const readProfile = () => {
   try {
     const s = localStorage.getItem('agriProfile');
-    if (s) return JSON.parse(s);
+    if (s) {
+      const p = JSON.parse(s);
+      if (p && p.city && p.crop) return p;
+    }
   } catch {}
-  return { city: 'Pune', crop: 'Cotton' };
+  return null;
 };
 
 const Dashboard = () => {
@@ -22,7 +25,8 @@ const Dashboard = () => {
   const [weather, setWeather] = useState(null);
   const [decision, setDecision] = useState(null);
   const [location, setLocation] = useState('');
-  const [profile, setProfile] = useState({ city: 'Pune', crop: 'Cotton' });
+  const [profile, setProfile] = useState(null);
+  const [error, setError] = useState(null);
 
   const fetchAdvice = async (params) => {
     const url = `http://localhost:5000/api/advice?${params}&mode=quick`;
@@ -33,30 +37,33 @@ const Dashboard = () => {
 
   const loadForProfile = async (p) => {
     setLoading(true);
+    setError(null);
     try {
-      const d = await fetchAdvice(`city=${encodeURIComponent(p.city)}&crop=${encodeURIComponent(p.crop || 'Cotton')}`);
+      const d = await fetchAdvice(`city=${encodeURIComponent(p.city)}&crop=${encodeURIComponent(p.crop)}`);
       setWeather(d.weather);
       setDecision(d.decision);
       setLocation(d.weather?.city || p.city);
     } catch (err) {
       console.error('Dashboard error:', err);
+      setError('Could not fetch data for your location.');
     } finally {
       setLoading(false);
     }
   };
 
   const useMyLocation = () => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation || !profile) return;
     setLoading(true);
+    setError(null);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const d = await fetchAdvice(`lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&crop=${encodeURIComponent(profile.crop || 'Cotton')}`);
+          const d = await fetchAdvice(`lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&crop=${encodeURIComponent(profile.crop)}`);
           setWeather(d.weather);
           setDecision(d.decision);
           setLocation(d.weather?.city || 'Here');
         } catch (err) {
-          console.error('geo advice failed:', err);
+          setError('Could not fetch data for your current location.');
         } finally {
           setLoading(false);
         }
@@ -68,6 +75,11 @@ const Dashboard = () => {
 
   const load = async () => {
     const p = readProfile();
+    if (!p) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
     setProfile(p);
     setLocation(p.city);
     await loadForProfile(p);
@@ -75,12 +87,26 @@ const Dashboard = () => {
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
+  if (!loading && !profile) {
+    return (
+      <Page>
+        <Hero eyebrow="Welcome" title="Let's set up your farm." subtitle="Tell us your city and primary crop and we'll start tracking the field." />
+        <Card className="!p-12 text-center">
+          <Empty title="No profile yet" hint="Head to Profile to add your location and crop — it only takes a moment." />
+          <div className="mt-6 inline-flex">
+            <Button as="a" href="/profile">Set up profile</Button>
+          </div>
+        </Card>
+      </Page>
+    );
+  }
+
   return (
     <Page>
       <Hero
         eyebrow="Today in your field"
-        title={location ? `Good farming, ${location}.` : 'Good farming.'}
-        subtitle={profile.crop ? `Intelligence for your ${profile.crop.toLowerCase()} crop, refreshed in real time.` : 'Your AI agronomist, refreshed in real time.'}
+        title={location ? `Good farming, ${location}.` : 'Loading your field…'}
+        subtitle={profile?.crop ? `Intelligence for your ${profile.crop.toLowerCase()} crop, refreshed in real time.` : ' '}
       >
         <div className="flex items-center gap-3 flex-wrap">
           {decision && <Tag tone={toneForStatus(decision.status)} dot>{decision.status}</Tag>}
@@ -186,7 +212,7 @@ const Dashboard = () => {
                 </div>
               </Card>
             ) : (
-              <Card><div className="type-body-muted">Unable to fetch recommendation.</div></Card>
+              <Card><div className="type-body-muted">{error || 'Unable to fetch recommendation.'}</div></Card>
             )}
           </div>
 
