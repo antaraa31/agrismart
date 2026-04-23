@@ -242,6 +242,31 @@ const run = async () => {
     ok('POST /api/disease-detect no file -> 400', e.response?.status === 400);
   }
 
+  // -------- Profile --------
+  section('Profile');
+  try {
+    const r = await axios.get(`${BASE}/profile`);
+    ok('GET /api/profile 200', r.status === 200);
+    ok('profile has city/crop', r.data.data && typeof r.data.data.city === 'string' && typeof r.data.data.crop === 'string');
+  } catch (e) {
+    ok('GET /api/profile', false, e.message);
+  }
+
+  try {
+    const r = await axios.put(`${BASE}/profile`, { city: 'Pune', region: 'Maharashtra', crop: 'Cotton' });
+    ok('PUT /api/profile 200', r.status === 200);
+    ok('PUT returns updated profile', r.data.data?.city === 'Pune' && r.data.data?.crop === 'Cotton');
+  } catch (e) {
+    ok('PUT /api/profile', false, e.message);
+  }
+
+  try {
+    await axios.put(`${BASE}/profile`, { city: 'Pune' });
+    ok('PUT /api/profile missing crop -> 400', false);
+  } catch (e) {
+    ok('PUT /api/profile missing crop -> 400', e.response?.status === 400);
+  }
+
   // -------- Agent --------
   section('Agent');
   try {

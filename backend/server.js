@@ -10,6 +10,7 @@ const agentRoutes = require('./routes/agent');
 const diseaseRoutes = require('./routes/disease');
 const pestRoutes = require('./routes/pest');
 const newsRoutes = require('./routes/news');
+const profileRoutes = require('./routes/profile');
 
 // Initialize Express App
 const app = express();
@@ -38,6 +39,7 @@ app.use('/api/agent', agentRoutes);
 app.use('/api/disease-detect', diseaseRoutes);
 app.use('/api/pest-alert', pestRoutes);
 app.use('/api/agri-news', newsRoutes);
+app.use('/api/profile', profileRoutes);
 // Back-compat alias: /api/smart-advice now routed to /api/advice (POST)
 app.use('/api/smart-advice', adviceRoutes);
 

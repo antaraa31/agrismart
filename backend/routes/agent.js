@@ -7,8 +7,8 @@ const { getDecisionMemory } = require('../services/decisionEngine');
 // Manually triggers a cycle of the background agent loop
 router.post('/run', async (req, res) => {
   try {
-    // Run the cycle asynchronously but we'll wait for it here to confirm success to the client
-    await runAgentCycle();
+    // Manual trigger bypasses the 2h cooldown
+    await runAgentCycle(true);
     
     res.status(200).json({
       status: 'success',

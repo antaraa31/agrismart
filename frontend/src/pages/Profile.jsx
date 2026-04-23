@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Check } from 'lucide-react';
-import { Page, Hero, Section, Card, Button, Divider } from '../components/ui';
+import { Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Page, Hero, Section, Card, Button } from '../components/ui';
 
 const crops = ['Wheat', 'Corn', 'Cotton', 'Soybeans', 'Rice'];
 
@@ -15,8 +15,9 @@ const Field = ({ label, hint, children }) => (
 );
 
 const Profile = () => {
-  const [profile, setProfile] = useState({ name: '', location: '', crop: 'Cotton', size: '', bio: '' });
-  const [saved, setSaved] = useState(false);
+  const [profile, setProfile] = useState({ name: '', location: '', region: '', crop: 'Cotton', size: '', bio: '' });
+  const [status, setStatus] = useState('idle'); // idle | saving | saved | error
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const s = localStorage.getItem('agriProfile');
@@ -25,6 +26,7 @@ const Profile = () => {
       setProfile({
         name: p.name || '',
         location: p.city || '',
+        region: p.region || '',
         crop: p.crop || 'Cotton',
         size: p.size || '',
         bio: p.bio || '',
@@ -34,14 +36,48 @@ const Profile = () => {
 
   const handle = (k) => (e) => setProfile({ ...profile, [k]: e.target.value });
 
-  const save = (e) => {
+  const save = async (e) => {
     e.preventDefault();
-    localStorage.setItem(
-      'agriProfile',
-      JSON.stringify({ name: profile.name, city: profile.location, crop: profile.crop, size: profile.size, bio: profile.bio })
-    );
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2400);
+    if (!profile.location.trim()) {
+      setError('Location is required.');
+      setStatus('error');
+      return;
+    }
+    setStatus('saving');
+    setError(null);
+
+    const saveObj = {
+      name: profile.name,
+      city: profile.location,
+      region: profile.region,
+      crop: profile.crop,
+      size: profile.size,
+      bio: profile.bio,
+    };
+    localStorage.setItem('agriProfile', JSON.stringify(saveObj));
+
+    try {
+      const res = await fetch('http://localhost:5000/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          city: profile.location,
+          region: profile.region,
+          crop: profile.crop,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || `Request failed (${res.status})`);
+      }
+      // Kick an immediate agent cycle so the terminal/log reflects the new profile
+      fetch('http://localhost:5000/api/agent/run', { method: 'POST' }).catch(() => {});
+      setStatus('saved');
+      setTimeout(() => setStatus('idle'), 2400);
+    } catch (err) {
+      setError(err.message || 'Could not sync to server. Saved locally only.');
+      setStatus('error');
+    }
   };
 
   return (
@@ -55,18 +91,25 @@ const Profile = () => {
       <Section>
         <form onSubmit={save}>
           <Card className="!p-0 overflow-hidden">
-            <div className="px-8 py-6 border-b border-[var(--color-hairline)] flex items-center justify-between">
+            <div className="px-8 py-6 border-b border-[var(--color-hairline)] flex items-center justify-between gap-4">
               <div>
                 <div className="type-eyebrow !text-[var(--color-ink-muted)] mb-1">Farm details</div>
-                <div className="type-body-muted">Used for weather, pest and crop advice.</div>
+                <div className="type-body-muted">Synced to the backend so every recommendation and agent cycle uses these values.</div>
               </div>
               <div className="flex items-center gap-3">
-                {saved && (
+                {status === 'saved' && (
                   <span className="type-small inline-flex items-center gap-1.5 text-[var(--color-accent)] fade-in">
                     <Check size={14} /> Saved
                   </span>
                 )}
-                <Button type="submit">Save changes</Button>
+                {status === 'saving' && (
+                  <span className="type-small inline-flex items-center gap-1.5 text-[var(--color-ink-muted)]">
+                    <Loader2 size={14} className="animate-spin" /> Saving
+                  </span>
+                )}
+                <Button type="submit" disabled={status === 'saving'}>
+                  {status === 'saving' ? 'Saving…' : 'Save changes'}
+                </Button>
               </div>
             </div>
 
@@ -74,8 +117,11 @@ const Profile = () => {
               <Field label="Name" hint="Shown only to you">
                 <input className="input-clean" value={profile.name} onChange={handle('name')} placeholder="Anish" />
               </Field>
-              <Field label="Location" hint="City, or city + state">
-                <input className="input-clean" required value={profile.location} onChange={handle('location')} placeholder="Pune, Maharashtra" />
+              <Field label="City" hint="Used for weather and news">
+                <input className="input-clean" required value={profile.location} onChange={handle('location')} placeholder="Pune" />
+              </Field>
+              <Field label="Region" hint="State or district (optional)">
+                <input className="input-clean" value={profile.region} onChange={handle('region')} placeholder="Maharashtra" />
               </Field>
               <Field label="Primary crop">
                 <div className="flex flex-wrap gap-2">
@@ -102,20 +148,27 @@ const Profile = () => {
                 <textarea rows={3} className="input-clean" value={profile.bio} onChange={handle('bio')} placeholder="Black cotton soil, micro-irrigation, kharif rotation…" />
               </Field>
             </div>
+
+            {error && (
+              <div className="mx-8 my-6 flex items-start gap-2.5 p-4 rounded-[var(--radius-sm)] bg-[var(--color-danger-soft)] text-[var(--color-danger)]">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span className="text-[14px]">{error}</span>
+              </div>
+            )}
           </Card>
         </form>
 
         <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-5">
           <Card className="!p-6">
-            <div className="type-eyebrow !text-[var(--color-ink-muted)] mb-2">Privacy</div>
+            <div className="type-eyebrow !text-[var(--color-ink-muted)] mb-2">What happens on save</div>
             <div className="type-body-muted">
-              Profile data lives in your browser. Nothing leaves your device unless you request a recommendation.
+              City, region and crop are pushed to the backend and the next agent cycle runs immediately — so every page and the terminal log pick up the change.
             </div>
           </Card>
           <Card className="!p-6">
             <div className="type-eyebrow !text-[var(--color-ink-muted)] mb-2">Tip</div>
             <div className="type-body-muted">
-              The more precise your location and crop, the sharper the daily recommendation.
+              The more precise your city and crop, the sharper the daily recommendation.
             </div>
           </Card>
         </div>

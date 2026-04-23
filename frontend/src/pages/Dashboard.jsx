@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Wind, Droplets, Thermometer, Cloud, Sparkles, Check, RefreshCw } from 'lucide-react';
+import { MapPin, Wind, Droplets, Thermometer, Cloud, Sparkles, Check, RefreshCw, Locate } from 'lucide-react';
 import { Page, Hero, Section, Card, Stat, Tag, Button } from '../components/ui';
 import Loader from '../components/Loader';
 
@@ -7,6 +7,14 @@ const toneForStatus = (status) => {
   if (status === 'CRITICAL') return 'danger';
   if (status === 'WARNING') return 'warn';
   return 'good';
+};
+
+const readProfile = () => {
+  try {
+    const s = localStorage.getItem('agriProfile');
+    if (s) return JSON.parse(s);
+  } catch {}
+  return { city: 'Pune', crop: 'Cotton' };
 };
 
 const Dashboard = () => {
@@ -23,45 +31,46 @@ const Dashboard = () => {
     return (await res.json()).data;
   };
 
-  const load = async () => {
+  const loadForProfile = async (p) => {
     setLoading(true);
-    const saved = localStorage.getItem('agriProfile');
-    const p = saved ? JSON.parse(saved) : { city: 'Pune', crop: 'Cotton' };
-    setProfile(p);
-    setLocation(p.city);
-
-    const byCity = async () => {
+    try {
       const d = await fetchAdvice(`city=${encodeURIComponent(p.city)}&crop=${encodeURIComponent(p.crop || 'Cotton')}`);
       setWeather(d.weather);
       setDecision(d.decision);
       setLocation(d.weather?.city || p.city);
-    };
-
-    try {
-      if (typeof navigator !== 'undefined' && navigator.geolocation) {
-        await new Promise((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-              try {
-                const d = await fetchAdvice(`lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&crop=${encodeURIComponent(p.crop || 'Cotton')}`);
-                setWeather(d.weather);
-                setDecision(d.decision);
-                setLocation(d.weather?.city || p.city);
-              } catch (err) { await byCity(); }
-              resolve();
-            },
-            async () => { await byCity(); resolve(); },
-            { timeout: 5000 }
-          );
-        });
-      } else {
-        await byCity();
-      }
     } catch (err) {
       console.error('Dashboard error:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) return;
+    setLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const d = await fetchAdvice(`lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&crop=${encodeURIComponent(profile.crop || 'Cotton')}`);
+          setWeather(d.weather);
+          setDecision(d.decision);
+          setLocation(d.weather?.city || 'Here');
+        } catch (err) {
+          console.error('geo advice failed:', err);
+        } finally {
+          setLoading(false);
+        }
+      },
+      () => setLoading(false),
+      { timeout: 5000 }
+    );
+  };
+
+  const load = async () => {
+    const p = readProfile();
+    setProfile(p);
+    setLocation(p.city);
+    await loadForProfile(p);
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
@@ -83,6 +92,9 @@ const Dashboard = () => {
           )}
           <button onClick={load} className="btn-link type-small" aria-label="Refresh">
             <RefreshCw size={14} /> Refresh
+          </button>
+          <button onClick={useMyLocation} className="btn-link type-small" aria-label="Use my location">
+            <Locate size={14} /> Use my location
           </button>
         </div>
       </Hero>

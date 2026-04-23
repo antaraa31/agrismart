@@ -36,7 +36,10 @@ const runOne = async (profile, forceRun) => {
   console.log(`\n[AGENT LOOP] Cycle for ${profile.city}, ${profile.region} - Crop: ${profile.crop}`);
   try {
     const port = process.env.PORT || 5000;
-    const weatherResponse = await axios.get(`http://localhost:${port}/api/weather?lat=${profile.lat}&lon=${profile.lon}`);
+    const weatherQuery = profile.lat && profile.lon
+      ? `lat=${encodeURIComponent(profile.lat)}&lon=${encodeURIComponent(profile.lon)}`
+      : `city=${encodeURIComponent(profile.city)}`;
+    const weatherResponse = await axios.get(`http://localhost:${port}/api/weather?${weatherQuery}`);
     const weatherData = weatherResponse.data.data;
     console.log(`[AGENT LOOP] Weather: ${weatherData.temperature}°C, ${weatherData.humidity}% humidity.`);
 
