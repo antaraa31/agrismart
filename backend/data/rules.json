@@ -1,0 +1,46 @@
+[
+  {
+    "crop": "Wheat",
+    "conditions": {
+      "minTemp": 15,
+      "maxTemp": 25,
+      "minHumidity": 50,
+      "maxHumidity": 70
+    },
+    "soilType": "Loamy",
+    "description": "Wheat is best grown in moderate temperatures with moderate humidity."
+  },
+  {
+    "crop": "Rice",
+    "conditions": {
+      "minTemp": 20,
+      "maxTemp": 35,
+      "minHumidity": 70,
+      "maxHumidity": 100
+    },
+    "soilType": "Clay",
+    "description": "Rice thrives in warm, highly humid conditions and waterlogged soil."
+  },
+  {
+    "crop": "Corn",
+    "conditions": {
+      "minTemp": 18,
+      "maxTemp": 28,
+      "minHumidity": 55,
+      "maxHumidity": 75
+    },
+    "soilType": "Loamy",
+    "description": "Corn requires well-drained soil and warm weather."
+  },
+  {
+    "crop": "Cotton",
+    "conditions": {
+      "minTemp": 25,
+      "maxTemp": 35,
+      "minHumidity": 40,
+      "maxHumidity": 60
+    },
+    "soilType": "Sandy",
+    "description": "Cotton grows well in warm climates with less humidity."
+  }
+]
