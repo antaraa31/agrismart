@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Wind, Droplets, Thermometer, Cloud, Sparkles, Check, RefreshCw, Locate } from 'lucide-react';
+import { MapPin, Wind, Droplets, Thermometer, Cloud, Sparkles, Check, RefreshCw } from 'lucide-react';
 import { Page, Hero, Section, Card, Stat, Tag, Button, Empty } from '../components/ui';
 import Loader from '../components/Loader';
 
@@ -51,28 +51,6 @@ const Dashboard = () => {
     }
   };
 
-  const useMyLocation = () => {
-    if (!navigator.geolocation || !profile) return;
-    setLoading(true);
-    setError(null);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const d = await fetchAdvice(`lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&crop=${encodeURIComponent(profile.crop)}`);
-          setWeather(d.weather);
-          setDecision(d.decision);
-          setLocation(d.weather?.city || 'Here');
-        } catch (err) {
-          setError('Could not fetch data for your current location.');
-        } finally {
-          setLoading(false);
-        }
-      },
-      () => setLoading(false),
-      { timeout: 5000 }
-    );
-  };
-
   const load = async () => {
     const p = readProfile();
     if (!p) {
@@ -118,9 +96,6 @@ const Dashboard = () => {
           )}
           <button onClick={load} className="btn-link type-small" aria-label="Refresh">
             <RefreshCw size={14} /> Refresh
-          </button>
-          <button onClick={useMyLocation} className="btn-link type-small" aria-label="Use my location">
-            <Locate size={14} /> Use my location
           </button>
         </div>
       </Hero>

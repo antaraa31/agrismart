@@ -48,7 +48,7 @@ const fetchPestNews = async (crop, location = '') => {
 
       return {
         pestType: detectedPest,
-        affectedRegion: location || 'Unknown',
+        affectedRegion: location || '',
         severity,
         sourceHeadline: a.title,
       };

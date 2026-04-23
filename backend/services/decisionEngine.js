@@ -2,38 +2,44 @@ const aiService = require('./aiService');
 
 let decisionMemory = [];
 
+// Actions per pest family x risk level. Used only when OpenAI is unreachable.
 const ACTION_LIBRARY = {
-  "Fall Armyworm": {
-    "HIGH": ["Apply Spinetoram 11.7% SC or Chlorantraniliprole 18.5% SC immediately", "Deploy pheromone traps (5 per acre)", "Destroy severely infested crop residue"],
-    "MEDIUM": ["Apply Neem oil (1500 ppm) at 5ml/liter", "Scout fields dynamically at dawn or dusk"],
-    "LOW": ["Monitor weekly for egg masses", "Encourage natural predators like Trichogramma wasps"]
+  'Fall Armyworm': {
+    HIGH: ['Apply Spinetoram 11.7% SC or Chlorantraniliprole 18.5% SC immediately', 'Deploy pheromone traps (5 per acre)', 'Destroy severely infested crop residue'],
+    MEDIUM: ['Apply Neem oil (1500 ppm) at 5ml/liter', 'Scout fields at dawn or dusk for egg masses'],
+    LOW: ['Monitor weekly for egg masses', 'Encourage natural predators like Trichogramma wasps'],
   },
-  "Locust": {
-    "HIGH": ["Contact local agricultural department immediately for regional swarm tracking", "Apply Malathion 50% EC if swarm lands", "Use loud noises/drums to deter settling"],
-    "MEDIUM": ["Monitor regional news alerts closely for swarm vectors", "Prepare pesticide reserves"],
-    "LOW": ["Stay informed on regional weather patterns that carry swarms", "Check news weekly"]
+  Locust: {
+    HIGH: ['Contact local agricultural department for swarm tracking', 'Apply Malathion 50% EC if a swarm lands', 'Use loud noises to deter settling'],
+    MEDIUM: ['Monitor regional news for swarm vectors', 'Prepare pesticide reserves'],
+    LOW: ['Track regional weather patterns that carry swarms', 'Check news weekly'],
   },
-  "Fungal Pathogens / Blight": {
-    "HIGH": ["Apply systemic fungicide (e.g., Metalaxyl + Mancozeb) immediately", "Improve field drainage", "Halt overhead irrigation"],
-    "MEDIUM": ["Apply protective fungicide (Chlorothalonil)", "Monitor lower canopy for spots"],
-    "LOW": ["Ensure good plant spacing for aeration", "Avoid evening irrigation to keep canopy dry"]
+  'Fungal Pathogens / Blight': {
+    HIGH: ['Apply systemic fungicide (Metalaxyl + Mancozeb) immediately', 'Improve field drainage', 'Halt overhead irrigation'],
+    MEDIUM: ['Apply protective fungicide (Chlorothalonil)', 'Monitor lower canopy for spots'],
+    LOW: ['Ensure good plant spacing for aeration', 'Avoid evening irrigation to keep canopy dry'],
   },
-  "Spider Mites / Whiteflies": {
-    "HIGH": ["Apply Miticide (e.g., Spiromesifen)", "Ensure crops are not water-stressed", "Remove heavily infested leaves"],
-    "MEDIUM": ["Use insecticidal soap or horticultural oil", "Spray undersides of leaves in the morning"],
-    "LOW": ["Maintain adequate irrigation to prevent plant heat stress", "Inspect leaf undersides weekly"]
+  'Spider Mites / Whiteflies': {
+    HIGH: ['Apply miticide (Spiromesifen)', 'Ensure crops are not water-stressed', 'Remove heavily infested leaves'],
+    MEDIUM: ['Use insecticidal soap or horticultural oil', 'Spray undersides of leaves in the morning'],
+    LOW: ['Maintain adequate irrigation to prevent heat stress', 'Inspect leaf undersides weekly'],
   },
-  "General": {
-    "HIGH": ["Apply broad-spectrum organic or chemical control immediately", "Isolate affected crop areas", "Consult local agricultural extension office"],
-    "MEDIUM": ["Apply Neem oil spray", "Increase field scouting frequency to every 2 days"],
-    "LOW": ["Maintain standard preventative care", "Keep field borders weed-free", "Monitor weekly"]
-  }
+  'Aphids / Stem Borers': {
+    HIGH: ['Apply systemic insecticide (Imidacloprid)', 'Remove and destroy damaged shoots', 'Deploy yellow sticky traps'],
+    MEDIUM: ['Apply Neem oil (1500 ppm)', 'Introduce lady beetles or lacewings'],
+    LOW: ['Scout fields weekly for aphid colonies', 'Keep field borders weed-free'],
+  },
+  General: {
+    HIGH: ['Apply broad-spectrum control immediately', 'Isolate affected crop areas', 'Consult local agricultural extension office'],
+    MEDIUM: ['Apply Neem oil spray', 'Increase field scouting frequency to every 2 days'],
+    LOW: ['Maintain standard preventative care', 'Keep field borders weed-free', 'Monitor weekly'],
+  },
 };
 
 const getStatus = (riskLevel) => {
-  if (riskLevel === "HIGH") return "CRITICAL";
-  if (riskLevel === "MEDIUM") return "WARNING";
-  return "STABLE";
+  if (riskLevel === 'HIGH') return 'CRITICAL';
+  if (riskLevel === 'MEDIUM') return 'WARNING';
+  return 'STABLE';
 };
 
 const calculateConfidence = (pestScore, hasNews, temp, humidity) => {
@@ -45,80 +51,72 @@ const calculateConfidence = (pestScore, hasNews, temp, humidity) => {
 };
 
 const generateReasoning = (weather, likelyPest, hasNews) => {
-  let reasoning = `${weather.temperature > 30 ? `High temperature (${weather.temperature}°C)` : `Moderate temperature (${weather.temperature}°C)`} and ${weather.humidity > 60 ? `humid (${weather.humidity}%)` : `dry (${weather.humidity}%)`} conditions `;
-  if (likelyPest.includes('Mite') || likelyPest.includes('Whitefl')) {
-    reasoning += "favor rapid insect multiplication and heat stress.";
-  } else if (likelyPest.includes('Fungal') || likelyPest.includes('Blight')) {
-    reasoning += "create an optimal breeding ground for moisture-loving pathogens.";
-  } else {
-    reasoning += `elevate the risk for ${likelyPest} activity.`;
-  }
-  if (hasNews) reasoning += " This is strongly corroborated by active local news reports of outbreaks in your region.";
+  const tempPart = weather.temperature > 30
+    ? `High temperature (${weather.temperature}°C)`
+    : `Moderate temperature (${weather.temperature}°C)`;
+  const humPart = weather.humidity > 60
+    ? `humid (${weather.humidity}%)`
+    : `dry (${weather.humidity}%)`;
+  let reasoning = `${tempPart} and ${humPart} conditions `;
+  if (/(Mite|Whitefl)/.test(likelyPest)) reasoning += 'favor rapid insect multiplication and heat stress.';
+  else if (/(Fungal|Blight)/.test(likelyPest)) reasoning += 'create an optimal breeding ground for moisture-loving pathogens.';
+  else reasoning += `elevate the risk for ${likelyPest} activity.`;
+  if (hasNews) reasoning += ' Corroborated by active local news reports.';
   return reasoning;
+};
+
+const pickActions = (pestName, riskLevel) => {
+  for (const key of Object.keys(ACTION_LIBRARY)) {
+    if (pestName.toLowerCase().includes(key.toLowerCase())) return ACTION_LIBRARY[key][riskLevel];
+  }
+  return ACTION_LIBRARY.General[riskLevel];
 };
 
 const generateDeterministicDecision = (context) => {
   const { profile, weather, pest } = context;
-  const locationString = profile.city ? `${profile.city}${profile.region ? ', ' + profile.region : ''}` : "Unknown Location";
+  if (!profile?.city || !profile?.crop) {
+    throw new Error('profile with city and crop is required');
+  }
+  const locationString = profile.region ? `${profile.city}, ${profile.region}` : profile.city;
   const pestRiskLevel = pest.riskLevel;
   const pestName = pest.likelyPest;
 
-  let targetedActions = ACTION_LIBRARY["General"][pestRiskLevel];
-  for (const knownPest in ACTION_LIBRARY) {
-    if (pestName.toLowerCase().includes(knownPest.toLowerCase())) {
-      targetedActions = ACTION_LIBRARY[knownPest][pestRiskLevel];
-      break;
-    }
-  }
-
-  const additionalActions = [
-    "Monitor soil moisture levels regularly",
-    "Ensure proper field drainage",
-    "Apply organic compost to improve soil health",
-    "Check for nutrient deficiencies",
-    "Implement crop rotation practices",
-    "Use beneficial insects for natural pest control"
-  ];
-  const shuffled = additionalActions.sort(() => 0.5 - Math.random());
-  targetedActions = targetedActions.concat(shuffled.slice(0, Math.floor(Math.random() * 2) + 1));
-
+  const actions = pickActions(pestName, pestRiskLevel);
   const alerts = [];
-  if (pestRiskLevel === "HIGH") {
-    alerts.push("Immediate attention required");
-    alerts.push(`High ${pestName} activity detected in your area`);
-  } else if (pestRiskLevel === "MEDIUM") {
+  if (pestRiskLevel === 'HIGH') {
+    alerts.push('Immediate attention required');
+    alerts.push(`High ${pestName} activity likely in your area`);
+  } else if (pestRiskLevel === 'MEDIUM') {
     alerts.push(`Elevated conditions for ${pestName} development`);
   }
 
   const confValue = calculateConfidence(pest.score, pest.newsAlertActive, weather.temperature, weather.humidity);
 
-  const pestDecision = {
+  const decisions = [{
     status: getStatus(pestRiskLevel),
     location: locationString,
-    crop: profile.crop || "Unknown Crop",
+    crop: profile.crop,
     riskLevel: pestRiskLevel,
-    detectedThreat: pestRiskLevel === "LOW" ? "None detected (Monitoring for " + pestName + ")" : pestName,
+    detectedThreat: pestRiskLevel === 'LOW' ? `None detected (monitoring for ${pestName})` : pestName,
     confidence: `${confValue}%`,
-    reasoning: generateReasoning(weather, pestName, pest.newsAlertActive) + ` (Assessment at ${new Date().toLocaleString()})`,
-    actions: targetedActions,
-    alerts: alerts,
-    timestamp: new Date().toISOString()
-  };
+    reasoning: generateReasoning(weather, pestName, pest.newsAlertActive),
+    actions,
+    alerts,
+    timestamp: new Date().toISOString(),
+  }];
 
-  const decisions = [pestDecision];
-
-  if (weather.description && weather.description.toLowerCase().includes('rain') && pestRiskLevel !== "HIGH") {
+  if (weather.description && /rain/i.test(weather.description) && pestRiskLevel !== 'HIGH') {
     decisions.push({
-      status: "WARNING",
+      status: 'WARNING',
       location: locationString,
       crop: profile.crop,
-      riskLevel: "MEDIUM",
-      detectedThreat: "Rainfall / Waterlogging",
-      confidence: "90%",
-      reasoning: `OpenWeather indicates upcoming ${weather.description}. Excess moisture can damage soil structure if not managed.`,
-      actions: ["Delay scheduled irrigation by 24-48 hours", "Ensure field drainage channels are clear"],
-      alerts: ["Impending rainfall expected"],
-      timestamp: new Date().toISOString()
+      riskLevel: 'MEDIUM',
+      detectedThreat: 'Rainfall / Waterlogging',
+      confidence: '90%',
+      reasoning: `Forecast indicates ${weather.description}. Excess moisture can damage soil structure if not managed.`,
+      actions: ['Delay scheduled irrigation by 24-48 hours', 'Clear field drainage channels'],
+      alerts: ['Impending rainfall expected'],
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -145,10 +143,9 @@ const generateDecisions = async (context) => {
   }
 
   if (decisions.length > 0) {
-    decisions.forEach(d => decisionMemory.push(d));
+    decisions.forEach((d) => decisionMemory.push(d));
     if (decisionMemory.length > 20) decisionMemory = decisionMemory.slice(-20);
   }
-
   return decisions;
 };
 
@@ -157,5 +154,5 @@ const getDecisionMemory = () => decisionMemory;
 module.exports = {
   generateDecisions,
   generateDeterministicDecision,
-  getDecisionMemory
+  getDecisionMemory,
 };

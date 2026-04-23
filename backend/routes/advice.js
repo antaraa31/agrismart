@@ -12,34 +12,39 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 const baseUrl = () => `http://localhost:${process.env.PORT || 5000}/api`;
 
 const fetchWeather = async ({ city, lat, lon }) => {
-  const params = [];
-  if (lat && lon) { params.push(`lat=${lat}`, `lon=${lon}`); }
-  else if (city) { params.push(`city=${encodeURIComponent(city)}`); }
-  else { throw new Error('city or lat/lon required'); }
-  const r = await axios.get(`${baseUrl()}/weather?${params.join('&')}`);
+  let query;
+  if (lat && lon) query = `lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+  else if (city) query = `city=${encodeURIComponent(city)}`;
+  else throw new Error('city or lat/lon is required');
+  const r = await axios.get(`${baseUrl()}/weather?${query}`);
   return r.data.data;
 };
 
-const buildProfile = ({ weather, crop, city, region }) => ({
-  city: city || weather?.city || 'Unknown',
-  region: region || '',
-  lat: '', lon: '',
-  crop: crop || 'Unknown'
-});
+const buildProfile = ({ weather, crop, city, region }) => {
+  if (!crop) throw new Error('crop is required');
+  const resolvedCity = (city && String(city).trim()) || weather?.city;
+  if (!resolvedCity) throw new Error('city is required');
+  return {
+    city: resolvedCity,
+    region: region ? String(region).trim() : '',
+    lat: '',
+    lon: '',
+    crop: String(crop).trim(),
+  };
+};
 
-// GET /api/advice?mode=quick&city=Pune&crop=Cotton
-// GET /api/advice?mode=quick&lat=18.52&lon=73.85&crop=Cotton
+// GET /api/advice?city=<city>&crop=<crop>&mode=quick
+// GET /api/advice?lat=<lat>&lon=<lon>&crop=<crop>&mode=quick
 router.get('/', async (req, res) => {
   try {
-    const { city, lat, lon, crop = 'General', mode = 'quick' } = req.query;
-    if (!city && !(lat && lon)) {
-      return res.status(400).json({ status: 'error', message: 'Provide city or lat/lon' });
-    }
+    const { city, lat, lon, crop, region, mode = 'quick' } = req.query;
+    if (!crop) return res.status(400).json({ status: 'error', message: 'crop is required' });
+    if (!city && !(lat && lon)) return res.status(400).json({ status: 'error', message: 'city or lat/lon is required' });
 
     const weather = await fetchWeather({ city, lat, lon });
     const pest = await detectPestOutbreak(weather.temperature, weather.humidity, crop, weather.city);
     const news = await fetchAgriNews(weather.city);
-    const profile = buildProfile({ weather, crop, city });
+    const profile = buildProfile({ weather, crop, city, region });
     const context = { profile, weather, pest, news };
 
     let decision;
@@ -47,7 +52,7 @@ router.get('/', async (req, res) => {
       try {
         decision = await aiService.generateAdvice(context, mode === 'full' ? 'full' : 'quick');
       } catch (err) {
-        console.error('[/api/advice] AI generation failed:', err.message);
+        console.error('[/api/advice GET] AI generation failed:', err.message);
         decision = generateDeterministicDecision(context)[0];
       }
     } else {
@@ -57,24 +62,24 @@ router.get('/', async (req, res) => {
     decision.timestamp = new Date().toISOString();
     res.status(200).json({
       status: 'success',
-      data: { decision, weather, pest, newsCount: news.length }
+      data: { decision, weather, pest, newsCount: news.length },
     });
   } catch (error) {
     console.error('Advice (GET) Error:', error.response?.data || error.message);
     res.status(500).json({
       status: 'error',
-      message: error.response?.data?.message || error.message || 'Failed to generate advice'
+      message: error.response?.data?.message || error.message || 'Failed to generate advice',
     });
   }
 });
 
-// POST /api/advice  (multipart/form-data)  -> mode=full with optional leaf image
+// POST /api/advice  (multipart/form-data)
+// fields: city, crop [, region, lat, lon, mode=full, image]
 router.post('/', upload.single('image'), async (req, res) => {
   try {
-    const { city, crop, lat, lon, mode = 'full' } = req.body;
-    if (!crop || (!city && !(lat && lon))) {
-      return res.status(400).json({ status: 'error', message: 'crop AND (city OR lat/lon) are required' });
-    }
+    const { city, crop, region, lat, lon, mode = 'full' } = req.body;
+    if (!crop) return res.status(400).json({ status: 'error', message: 'crop is required' });
+    if (!city && !(lat && lon)) return res.status(400).json({ status: 'error', message: 'city or lat/lon is required' });
 
     const weather = await fetchWeather({ city, lat, lon });
     const pest = await detectPestOutbreak(weather.temperature, weather.humidity, crop, weather.city);
@@ -94,7 +99,7 @@ router.post('/', upload.single('image'), async (req, res) => {
       }
     }
 
-    const profile = buildProfile({ weather, crop, city });
+    const profile = buildProfile({ weather, crop, city, region });
     const context = { profile, weather, pest, news, disease };
 
     let decision;
@@ -108,7 +113,7 @@ router.post('/', upload.single('image'), async (req, res) => {
           ...fallback,
           irrigationPlan: { nextAction: 'Maintain current irrigation schedule', windowHours: 24, notes: 'AI synthesis unavailable; defaulting to rule-based plan.' },
           schemes: [],
-          summary: 'Operating in fallback mode. AI synthesis unavailable; recommendations are rule-based.'
+          summary: 'Operating in fallback mode. AI synthesis unavailable; recommendations are rule-based.',
         };
       }
     } else {
@@ -117,7 +122,7 @@ router.post('/', upload.single('image'), async (req, res) => {
         ...fallback,
         irrigationPlan: { nextAction: 'Maintain current irrigation schedule', windowHours: 24, notes: 'OpenAI key not configured.' },
         schemes: [],
-        summary: 'AI synthesis not configured; showing rule-based recommendations only.'
+        summary: 'AI synthesis not configured; showing rule-based recommendations only.',
       };
     }
     decision.timestamp = new Date().toISOString();
@@ -126,14 +131,14 @@ router.post('/', upload.single('image'), async (req, res) => {
       status: 'success',
       data: {
         decision,
-        rawIntelligence: { weather, pest, disease, news }
-      }
+        rawIntelligence: { weather, pest, disease, news },
+      },
     });
   } catch (error) {
     console.error('Advice (POST) Error:', error.response?.data || error.message);
     res.status(500).json({
       status: 'error',
-      message: error.response?.data?.message || error.message || 'Failed to generate full advice'
+      message: error.response?.data?.message || error.message || 'Failed to generate full advice',
     });
   }
 });

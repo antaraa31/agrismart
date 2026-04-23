@@ -108,7 +108,7 @@ const Disease = () => {
                   <span className="type-eyebrow">Diagnosis</span>
                 </div>
 
-                <h2 className="type-h1 mb-3">{result.disease || 'Unknown'}</h2>
+                <h2 className="type-h1 mb-3">{result.disease}</h2>
 
                 <div className="flex items-center gap-3 mb-8">
                   {result.severity && <Tag tone={severityTone(result.severity)}>Severity · {result.severity}</Tag>}
