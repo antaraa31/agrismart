@@ -1,40 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, Filter } from 'lucide-react';
 import { Page, Hero, Section, Card, Tag, Empty } from '../components/ui';
+import Loader from '../components/Loader';
 
 const tone = (c) => (c === 'scheme' ? 'accent' : c === 'pest' ? 'danger' : c === 'weather' ? 'warn' : 'neutral');
 const label = (c) => (c === 'scheme' ? 'Scheme' : c === 'pest' ? 'Pest alert' : c === 'weather' ? 'Weather' : 'News');
 
 const Schemes = () => {
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState(schemes);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    const run = async () => {
-      try {
-        setLoading(true);
-        const r = await fetch('http://localhost:5000/api/agri-news');
-        const data = await r.json();
-        if (r.ok) setItems(data.data || []);
-      } catch (err) {
-        console.error('Schemes error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    run();
-  }, []);
-
   const filtered = filter === 'all' ? items : items.filter((n) => n.category === filter);
-  const categories = ['all', 'scheme', 'weather', 'pest'];
+  const categories = ['all', 'scheme'];
 
   return (
     <Page>
       <Hero
-        eyebrow="Government & news"
-        title="What's moving in your region."
-        subtitle="Schemes, subsidies, weather advisories and pest reports — filtered to what matters for you."
+        eyebrow="Government Schemes"
+        title="Farmer Support Programs"
+        subtitle="Central and state government schemes, subsidies, and assistance programs for Indian farmers."
       />
 
       <Section>
@@ -52,7 +37,7 @@ const Schemes = () => {
                   : 'bg-[var(--color-surface-alt)] text-[var(--color-ink-muted)] hover:bg-[var(--color-surface-sunken)]'
               }`}
             >
-              {c === 'all' ? 'All' : label(c)}
+              {c === 'all' ? 'All' : 'Scheme'}
             </button>
           ))}
         </div>
@@ -64,32 +49,38 @@ const Schemes = () => {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <Card><Empty title="Nothing here" hint="No articles match this filter yet." /></Card>
+          <Card><div className="text-center py-10 text-[var(--color-ink-muted)]">No schemes available</div></Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((n, i) => (
-              <a
-                key={i}
-                href={n.url || '#'}
-                target="_blank"
-                rel="noreferrer"
-                className="block"
-              >
-                <Card hoverLift className="!p-6 h-full flex flex-col fade-in">
-                  <div className="flex items-center justify-between mb-4">
-                    <Tag tone={tone(n.category)}>{label(n.category)}</Tag>
-                    {typeof n.relevanceScore === 'number' && (
-                      <span className="type-caption tabular-nums">{n.relevanceScore}</span>
-                    )}
+            {filtered.map((scheme, i) => (
+              <Card key={i} hoverLift className="!p-0 h-full flex flex-col fade-in overflow-hidden">
+                {scheme.image && (
+                  <div className="h-40 overflow-hidden">
+                    <img 
+                      src={scheme.image} 
+                      alt={scheme.name}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                  <h3 className="type-h3 mb-3 line-clamp-3">{n.title}</h3>
-                  <p className="type-small flex-1 line-clamp-3 mb-5">{n.summary || n.description}</p>
-                  <div className="flex items-center justify-between pt-4 border-t border-[var(--color-hairline)] mt-auto">
-                    <span className="type-caption">{n.source?.name || 'News'} · {n.publishedAt ? new Date(n.publishedAt).toLocaleDateString() : 'Recent'}</span>
-                    <ArrowUpRight size={16} className="text-[var(--color-ink-muted)]" />
+                )}
+                <div className="!p-6 flex-1 flex flex-col">
+                  <div className="flex items-center justify-between mb-3">
+                    <Tag tone="accent">Scheme</Tag>
                   </div>
-                </Card>
-              </a>
+                  <h3 className="type-h3 mb-2 line-clamp-2">{scheme.name}</h3>
+                  <p className="type-small flex-1 line-clamp-3 mb-4">{scheme.description}</p>
+                  <div className="space-y-2 pt-4 border-t border-[var(--color-hairline)] mt-auto">
+                    <div className="flex items-center gap-2">
+                      <span className="type-caption text-[var(--color-ink-muted)]">Benefit:</span>
+                      <span className="type-small font-medium">{scheme.benefit}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="type-caption text-[var(--color-ink-muted)]">Eligibility:</span>
+                      <span className="type-small">{scheme.eligibility}</span>
+                    </div>
+                  </div>
+                </div>
+              </Card>
             ))}
           </div>
         )}
