@@ -33,9 +33,20 @@ const Disease = () => {
     fd.append('image', file);
     try {
       const res = await fetch('http://localhost:5000/api/disease-detect', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (res.ok) setResult(data.data);
-      else setError(data.message || 'Could not analyze the image.');
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setResult(data.data);
+      } else if (data.code === 'quota') {
+        setError('AI is paused — your OpenAI quota is exhausted. Add billing at platform.openai.com, then retry.');
+      } else if (data.code === 'no_key') {
+        setError('OpenAI is not configured on the server. Add OPENAI_API_KEY to backend/.env.');
+      } else if (data.code === 'rate_limit') {
+        setError('Too many requests right now. Please try again in a moment.');
+      } else if (data.code === 'bad_mime' || data.code === 'no_file') {
+        setError(data.message);
+      } else {
+        setError(data.message || 'Could not analyze the image.');
+      }
     } catch (err) {
       setError('Network error. Make sure the backend is running.');
     } finally {

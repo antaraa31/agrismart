@@ -18,20 +18,49 @@ const getClient = () => {
 
 const isEnabled = () => getClient() !== null;
 
+class AIError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'AIError';
+    this.code = code; // 'no_key' | 'quota' | 'rate_limit' | 'upstream' | 'parse' | 'empty'
+  }
+}
+
+const translateOpenAIError = (err) => {
+  const status = err?.status;
+  const msg = (err?.message || '').toLowerCase();
+  if (status === 401) return new AIError('no_key', 'Your OpenAI API key is invalid or missing.');
+  if (status === 429 || msg.includes('quota')) {
+    return new AIError('quota', 'AI is paused — your OpenAI quota is exhausted. Add billing at platform.openai.com, then try again.');
+  }
+  if (status === 429) return new AIError('rate_limit', 'Too many AI requests right now. Please try again in a moment.');
+  if (status >= 500) return new AIError('upstream', 'OpenAI is temporarily unavailable. Please retry in a moment.');
+  return new AIError('upstream', err?.message || 'AI request failed.');
+};
+
 const callJSON = async ({ schemaName, schema, messages }) => {
   const client = getClient();
-  if (!client) throw new Error('OPENAI_API_KEY not configured');
-  const completion = await client.chat.completions.create({
-    model: MODEL,
-    messages,
-    response_format: {
-      type: 'json_schema',
-      json_schema: { name: schemaName, strict: true, schema }
-    }
-  });
+  if (!client) throw new AIError('no_key', 'OpenAI is not configured on this server.');
+  let completion;
+  try {
+    completion = await client.chat.completions.create({
+      model: MODEL,
+      messages,
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: schemaName, strict: true, schema }
+      }
+    });
+  } catch (err) {
+    throw translateOpenAIError(err);
+  }
   const content = completion.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty response from OpenAI');
-  return JSON.parse(content);
+  if (!content) throw new AIError('empty', 'AI returned an empty response.');
+  try {
+    return JSON.parse(content);
+  } catch {
+    throw new AIError('parse', 'AI returned an unparseable response.');
+  }
 };
 
 const newsSchema = {
@@ -239,5 +268,6 @@ module.exports = {
   isEnabled,
   classifyNews,
   analyzeLeafImage,
-  generateAdvice
+  generateAdvice,
+  AIError,
 };
