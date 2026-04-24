@@ -5,6 +5,7 @@ const aiService = require('../services/aiService');
 const { detectPestOutbreak } = require('../services/pestService');
 const { fetchAgriNews } = require('../services/newsService');
 const { generateDeterministicDecision } = require('../services/decisionEngine');
+const cacheControl = require('../middleware/cacheControl');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -35,7 +36,7 @@ const buildProfile = ({ weather, crop, city, region }) => {
 
 // GET /api/advice?city=<city>&crop=<crop>&mode=quick
 // GET /api/advice?lat=<lat>&lon=<lon>&crop=<crop>&mode=quick
-router.get('/', async (req, res) => {
+router.get('/', cacheControl(600), async (req, res) => {
   try {
     const { city, lat, lon, crop, region, mode = 'quick' } = req.query;
     if (!crop) return res.status(400).json({ status: 'error', message: 'crop is required' });

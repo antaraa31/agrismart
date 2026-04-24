@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { invalidateAll } = require('../services/cache');
 
 const router = express.Router();
 const profilesPath = path.join(__dirname, '../data/profiles.json');
@@ -44,6 +45,9 @@ router.put('/', (req, res) => {
   if (idx >= 0) profiles[idx] = next;
   else profiles.unshift(next);
   writeProfiles(profiles);
+  // Profile change invalidates every cached upstream result so the next read is fresh.
+  const cleared = invalidateAll();
+  if (cleared > 0) console.log(`[cache] CLEARED ${cleared} entries after profile write`);
   res.status(200).json({ status: 'success', data: next });
 });
 

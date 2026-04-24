@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, Filter } from 'lucide-react';
 import { Page, Hero, Section, Card, Tag, Empty } from '../components/ui';
-import Loader from '../components/Loader';
 
 const tone = (c) => (c === 'scheme' ? 'accent' : c === 'pest' ? 'danger' : c === 'weather' ? 'warn' : 'neutral');
 const label = (c) => (c === 'scheme' ? 'Scheme' : c === 'pest' ? 'Pest alert' : c === 'weather' ? 'Weather' : 'News');

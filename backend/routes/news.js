@@ -1,11 +1,12 @@
 const express = require('express');
 const { fetchAgriNews } = require('../services/newsService');
+const cacheControl = require('../middleware/cacheControl');
 
 const router = express.Router();
 
 // GET /api/agri-news
 // Fetch Indian Government Schemes and Agriculture News
-router.get('/', async (req, res) => {
+router.get('/', cacheControl(900), async (req, res) => {
   try {
     // Call the intelligent news service
     const newsData = await fetchAgriNews();

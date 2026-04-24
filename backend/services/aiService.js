@@ -1,6 +1,11 @@
 const OpenAI = require('openai');
+const { withCache } = require('./cache');
 
 const MODEL = 'gpt-4o-mini';
+
+// Advice can be cached for 10 minutes — weather and pest scores rarely shift meaningfully that fast,
+// and this keeps one Dashboard refresh (or a StrictMode double-mount) from burning an OpenAI call.
+const ADVICE_TTL_MS = 10 * 60 * 1000;
 
 let _client = null;
 const getClient = () => {
@@ -191,21 +196,42 @@ const buildContextMessage = (context) => {
   });
 };
 
+const adviceCacheKey = (context, mode) => {
+  const { profile, weather, pest, disease } = context;
+  const tempBucket = Math.round(weather?.temperature ?? 0);
+  const humBucket = Math.round(weather?.humidity ?? 0);
+  return [
+    mode,
+    String(profile?.city || '').toLowerCase(),
+    String(profile?.crop || '').toLowerCase(),
+    tempBucket,
+    humBucket,
+    String(weather?.description || '').toLowerCase(),
+    pest?.riskLevel || '',
+    pest?.newsAlertActive ? '1' : '0',
+    disease?.disease || '',
+  ].join('|');
+};
+
 const generateAdvice = async (context, mode = 'quick') => {
   if (!isEnabled()) throw new Error('OPENAI_API_KEY not configured');
-  const schema = mode === 'full' ? fullAdviceSchema : quickDecisionSchema;
-  const schemaName = mode === 'full' ? 'full_advice' : 'quick_decision';
-  const extras = mode === 'full'
-    ? ' Also produce irrigationPlan.nextAction (concrete action), irrigationPlan.windowHours (integer hours until action), irrigationPlan.notes, schemes (2-4 items pulled from provided news with url), and a 3-5 sentence plain-text summary a farmer can read.'
-    : '';
-  const messages = [
-    {
-      role: 'system',
-      content: `You are AgriSmart, an expert agronomy decision engine. Using the provided context (weather, rule-based pest risk score, optional image analysis, and local news), produce a structured recommendation for a farmer. Keep language simple and specific. confidence must be an integer percentage followed by %, e.g. "87%". actions must be concrete and locally relevant. status mapping: HIGH->CRITICAL, MEDIUM->WARNING, LOW->STABLE unless overridden by a specific event.${extras}`
-    },
-    { role: 'user', content: buildContextMessage(context) }
-  ];
-  return callJSON({ schemaName, schema, messages });
+
+  const key = adviceCacheKey(context, mode);
+  return withCache('ai:advice', key, ADVICE_TTL_MS, async () => {
+    const schema = mode === 'full' ? fullAdviceSchema : quickDecisionSchema;
+    const schemaName = mode === 'full' ? 'full_advice' : 'quick_decision';
+    const extras = mode === 'full'
+      ? ' Also produce irrigationPlan.nextAction (concrete action), irrigationPlan.windowHours (integer hours until action), irrigationPlan.notes, schemes (2-4 items pulled from provided news with url), and a 3-5 sentence plain-text summary a farmer can read.'
+      : '';
+    const messages = [
+      {
+        role: 'system',
+        content: `You are AgriSmart, an expert agronomy decision engine. Using the provided context (weather, rule-based pest risk score, optional image analysis, and local news), produce a structured recommendation for a farmer. Keep language simple and specific. confidence must be an integer percentage followed by %, e.g. "87%". actions must be concrete and locally relevant. status mapping: HIGH->CRITICAL, MEDIUM->WARNING, LOW->STABLE unless overridden by a specific event.${extras}`
+      },
+      { role: 'user', content: buildContextMessage(context) }
+    ];
+    return callJSON({ schemaName, schema, messages });
+  });
 };
 
 module.exports = {

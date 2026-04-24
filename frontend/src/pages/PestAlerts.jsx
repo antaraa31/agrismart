@@ -43,11 +43,7 @@ const PestAlerts = () => {
           const pRes = await fetch('http://localhost:5000/api/pest-alert', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              temperature: w.data.temperature,
-              humidity: w.data.humidity,
-              crop: p.crop,
-            }),
+            body: JSON.stringify({ temperature: w.data.temperature, humidity: w.data.humidity, crop: p.crop }),
           });
           if (pRes.ok) {
             const pData = await pRes.json();
